@@ -2,12 +2,15 @@
 # Runs the reminiscor-director program, installing it first when needed:
 #
 #   scripts/reminiscor-director <command> [args...]   run a program command
+#   scripts/reminiscor-director update --check        the installed and latest versions, and what is new
 #   scripts/reminiscor-director update                install the latest release, if newer
 #
 # The program comes from this repo's Releases (plain HTTPS, checked against
 # SHA256SUMS) into its own folder. VERSION below is the lowest version this
 # plugin works with: an older or missing program is replaced by it on the next
-# call. `update` asks GitHub for the latest release and moves up to it.
+# call. `update` moves up to the latest release. Both read this repo's
+# CHANGELOG.md, which the release workflow writes after each release: its
+# first version is the latest.
 #
 # Every install stops what the old program runs, runs `setup` (which installs
 # only what changed, such as a new ComfyUI commit) and starts it again. The
@@ -16,7 +19,7 @@
 #
 # Overrides: REMINISCOR_DIRECTOR_PROGRAM (program folder),
 # REMINISCOR_DIRECTOR_HOME (data folder, read by the program itself),
-# REMINISCOR_DIRECTOR_RELEASES and REMINISCOR_DIRECTOR_API (for testing a build).
+# REMINISCOR_DIRECTOR_RELEASES and REMINISCOR_DIRECTOR_CHANGELOG (for testing a build).
 set -euo pipefail
 
 VERSION=0.1.0
@@ -36,7 +39,7 @@ case "$(uname -s)-$(uname -m)" in
 esac
 base="${REMINISCOR_DIRECTOR_PROGRAM:-$base}"
 releases="${REMINISCOR_DIRECTOR_RELEASES:-https://github.com/$REPO/releases/download}"
-api="${REMINISCOR_DIRECTOR_API:-https://api.github.com}"
+changelog_url="${REMINISCOR_DIRECTOR_CHANGELOG:-https://raw.githubusercontent.com/$REPO/main/CHANGELOG.md}"
 
 exe_of() { printf '%s/%s/reminiscor-director/reminiscor-director' "$base" "$1"; }
 
@@ -94,18 +97,39 @@ install() {
     fi
 }
 
-latest() {
-    curl -fsSL -H "Accept: application/vnd.github+json" "$api/repos/$REPO/releases/latest" \
-        | sed -n 's/^ *"tag_name": *"v\{0,1\}\([^"]*\)".*/\1/p' | head -1
+# The first version in a changelog read from stdin.
+latest() { sed -n 's/^## \([0-9][0-9.]*\)\( .*\)\{0,1\}$/\1/p' | head -1; }
+
+# The sections of a changelog (stdin) for versions newer than $1.
+newer_than() {
+    local since=$1 line v show=""
+    while IFS= read -r line; do
+        case "$line" in
+            "## "[0-9]*)
+                v=${line#"## "}; v=${v%% *}
+                show=""; { [ -z "$since" ] || older "$since" "$v"; } && show=1 ;;
+            "## "*) show="" ;;
+        esac
+        [ -n "$show" ] && printf '%s\n' "$line"
+    done
+    return 0
 }
 
 current=$(installed)
 
 if [ "${1:-}" = update ]; then
-    newest=$(latest) || true
-    [ -n "$newest" ] || die "could not ask GitHub for the latest release; check the network"
+    changes=$(curl -fsSL "$changelog_url") || die "could not read $changelog_url; check the network"
+    newest=$(printf '%s\n' "$changes" | latest)
+    [ -n "$newest" ] || die "no version in $changelog_url"
     if [ -n "$current" ] && ! older "$current" "$newest"; then
         echo "reminiscor-director $current is the latest"
+        exit 0
+    fi
+    if [ "${2:-}" = --check ]; then
+        echo "installed: ${current:-none}"
+        echo "latest: $newest"
+        echo
+        printf '%s\n' "$changes" | newer_than "$current"
         exit 0
     fi
     install "$newest"
