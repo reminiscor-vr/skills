@@ -1,8 +1,15 @@
 {
   "name": "reminiscor-director",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Makes a film with Seedance from a creator's story and files. The skill fetches the reminiscor-director program from this repo's Releases on first use.",
   "repository": "https://github.com/reminiscor-vr/skills",
-  "keywords": ["seedance", "comfyui", "video", "film"],
-  "skills": ["./skills/reminiscor-director"]
+  "keywords": [
+    "seedance",
+    "comfyui",
+    "video",
+    "film"
+  ],
+  "skills": [
+    "./skills/reminiscor-director"
+  ]
 }
