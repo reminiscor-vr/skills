@@ -18,6 +18,7 @@ The first call downloads the program and runs `setup`, which installs ComfyUI, t
 | `status` | what runs and where, and the last records |
 | `ping` | runs one free workflow and records it: the check that everything works |
 | `stop` | stops what `start` started |
+| `update` | when the creator asks to check for updates: installs the latest release if it is newer, runs `setup`, and restarts what was running; the creator's data stays |
 
 `--help` on the program lists the rest. The creator's records and media stay in the program's data folder, which `status` prints.
 

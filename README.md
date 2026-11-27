@@ -17,6 +17,10 @@ claude plugin install reminiscor-director@reminiscor
 
 Then ask Claude to set up the director, or to ping it.
 
+## Updates
+
+Ask Claude to check for updates: it installs the latest release when there is a newer one, then runs setup, which adds only what changed. Your records, database and media are kept. A newer plugin version also moves the program up on its next use.
+
 ## Licence
 
 To be decided. The program's source is not in this repo.

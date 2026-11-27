@@ -1,22 +1,29 @@
 #!/usr/bin/env bash
-# Runs the reminiscor-director program, installing it first when it is
-# missing or not the version this plugin pins:
+# Runs the reminiscor-director program, installing it first when needed:
 #
-#   scripts/reminiscor-director <command> [args...]
+#   scripts/reminiscor-director <command> [args...]   run a program command
+#   scripts/reminiscor-director update                install the latest release, if newer
 #
 # The program comes from this repo's Releases (plain HTTPS, checked against
-# SHA256SUMS) into its own folder; a first install also runs `setup`. The data
-# folder is the program's own and is kept across versions.
+# SHA256SUMS) into its own folder. VERSION below is the lowest version this
+# plugin works with: an older or missing program is replaced by it on the next
+# call. `update` asks GitHub for the latest release and moves up to it.
+#
+# Every install stops what the old program runs, runs `setup` (which installs
+# only what changed, such as a new ComfyUI commit) and starts it again. The
+# data folder (records, database, media, ComfyUI's models) is the program's
+# own, elsewhere, and is never touched here.
 #
 # Overrides: REMINISCOR_DIRECTOR_PROGRAM (program folder),
 # REMINISCOR_DIRECTOR_HOME (data folder, read by the program itself),
-# REMINISCOR_DIRECTOR_RELEASES (where releases are, for testing a build).
+# REMINISCOR_DIRECTOR_RELEASES and REMINISCOR_DIRECTOR_API (for testing a build).
 set -euo pipefail
 
 VERSION=0.1.0
 REPO=reminiscor-vr/skills
 
 die() { printf 'error: %s\n' "$*" >&2; exit 1; }
+log() { printf '==> %s\n' "$*" >&2; }
 
 case "$(uname -s)-$(uname -m)" in
     Darwin-arm64)
@@ -28,23 +35,33 @@ case "$(uname -s)-$(uname -m)" in
     *) die "unsupported system: $(uname -s)-$(uname -m) (Mac Apple Silicon or Linux x64)" ;;
 esac
 base="${REMINISCOR_DIRECTOR_PROGRAM:-$base}"
-dir="$base/$VERSION"
-exe="$dir/reminiscor-director/reminiscor-director"
+releases="${REMINISCOR_DIRECTOR_RELEASES:-https://github.com/$REPO/releases/download}"
+api="${REMINISCOR_DIRECTOR_API:-https://api.github.com}"
+
+exe_of() { printf '%s/%s/reminiscor-director/reminiscor-director' "$base" "$1"; }
+
+# The installed version, when its program is there.
+installed() {
+    local v
+    v=$(cat "$base/current" 2>/dev/null) || return 0
+    [ -x "$(exe_of "$v")" ] && printf '%s' "$v"
+}
+
+# Whether version $1 is older than $2.
+older() { [ "$1" != "$2" ] && [ "$(printf '%s\n%s\n' "$1" "$2" | sort -V | head -1)" = "$1" ]; }
 
 sha256() {
     if command -v shasum >/dev/null; then shasum -a 256 "$1"; else sha256sum "$1"; fi | awk '{print $1}'
 }
 
-install() {
-    local archive="reminiscor-director-$VERSION-$system.tar.gz"
-    local url="${REMINISCOR_DIRECTOR_RELEASES:-https://github.com/$REPO/releases/download}/v$VERSION"
-    local tmp
+# Download, check and unpack version $1 into its own folder.
+fetch() {
+    local version=$1 archive="reminiscor-director-$1-$system.tar.gz" url="$releases/v$1" tmp want
     tmp=$(mktemp -d)
-    trap 'rm -rf "$tmp"' RETURN
-    echo "==> downloading reminiscor-director $VERSION ($system)" >&2
+    trap 'rm -rf "$tmp"; trap - RETURN' RETURN
+    log "downloading reminiscor-director $version ($system)"
     curl -fsSL "$url/$archive" -o "$tmp/$archive" || die "could not download $url/$archive"
     curl -fsSL "$url/SHA256SUMS" -o "$tmp/SHA256SUMS" || die "could not download $url/SHA256SUMS"
-    local want
     want=$(awk -v f="$archive" '$2 == f || $2 == "*"f {print $1}' "$tmp/SHA256SUMS")
     [ -n "$want" ] || die "$archive is not listed in SHA256SUMS"
     [ "$(sha256 "$tmp/$archive")" = "$want" ] || die "$archive does not match SHA256SUMS; not installed"
@@ -52,17 +69,52 @@ install() {
     tar -xzf "$tmp/$archive" -C "$tmp/unpacked"
     [ -x "$tmp/unpacked/reminiscor-director/reminiscor-director" ] || die "$archive has no reminiscor-director program"
     mkdir -p "$base"
-    rm -rf "$dir"
-    mv "$tmp/unpacked" "$dir"
-    # Older versions of the program; the data folder is elsewhere and stays.
-    find "$base" -mindepth 1 -maxdepth 1 ! -name "$VERSION" -exec rm -rf {} +
-    echo "==> installed in $dir" >&2
+    rm -rf "${base:?}/$version"
+    mv "$tmp/unpacked" "$base/$version"
 }
 
-if [ ! -x "$exe" ]; then
-    install
-    if [ "${1:-}" != setup ]; then
-        "$exe" setup >&2
+# Install version $1 in place of the current one, keeping what runs running.
+install() {
+    local version=$1 old running="" new
+    old=$(installed)
+    fetch "$version"
+    if [ -n "$old" ] && "$(exe_of "$old")" status 2>/dev/null | grep -qE '^(ComfyUI|app) +up'; then
+        running=1
+        log "stopping reminiscor-director $old"
+        "$(exe_of "$old")" stop >&2 || true
     fi
+    printf '%s\n' "$version" > "$base/current"
+    # Older programs; the data folder is elsewhere and stays.
+    find "$base" -mindepth 1 -maxdepth 1 -type d ! -name "$version" -exec rm -rf {} +
+    log "installed reminiscor-director $version${old:+ (was $old)}"
+    new=$(exe_of "$version")
+    "$new" setup >&2 || die "setup failed; run it again: $0 setup"
+    if [ -n "$running" ]; then
+        "$new" start >&2 || die "could not start it again: $0 start"
+    fi
+}
+
+latest() {
+    curl -fsSL -H "Accept: application/vnd.github+json" "$api/repos/$REPO/releases/latest" \
+        | sed -n 's/^ *"tag_name": *"v\{0,1\}\([^"]*\)".*/\1/p' | head -1
+}
+
+current=$(installed)
+
+if [ "${1:-}" = update ]; then
+    newest=$(latest) || true
+    [ -n "$newest" ] || die "could not ask GitHub for the latest release; check the network"
+    if [ -n "$current" ] && ! older "$current" "$newest"; then
+        echo "reminiscor-director $current is the latest"
+        exit 0
+    fi
+    install "$newest"
+    echo "reminiscor-director updated to $newest${current:+ from $current}"
+    exit 0
 fi
-exec "$exe" "$@"
+
+if [ -z "$current" ] || older "$current" "$VERSION"; then
+    install "$VERSION"
+    current=$VERSION
+fi
+exec "$(exe_of "$current")" "$@"
