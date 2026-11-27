@@ -159,6 +159,8 @@ When it is on, before writing the prompt, send a short plan: what happens, which
 
 There is no budget: no limit, no warning. The figures are there so the creator always knows what they are spending.
 
+**Comfy API key**: paid generations need the creator's Comfy API key; free twins and `ping` don't. When `project balance` says there is no key or Comfy refused it, or a paid generation fails for the key, send the creator to http://127.0.0.1:8765/settings: they paste the key there (from platform.comfy.org → API Keys), and it works at once, no restart. Never ask for the key in the chat, and if they paste one there, tell them to put it on that page instead.
+
 **Credits left**: when the creator asks how much is left, and only then, run `reminiscor-director project balance` and answer in plain words, in dollars (`total`; mention `subscription` only if they ask where it comes from). It is the whole Comfy account's balance, not this project's. With `known: false` say the balance is unknown and why (`reason`), and carry on: it stops no generation.
 
 ## When a generation fails

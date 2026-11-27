@@ -1,6 +1,6 @@
 {
   "name": "reminiscor-director",
-  "version": "0.1.2",
+  "version": "0.1.3",
   "description": "Makes a film with Seedance from a creator's story and files. The skill fetches the reminiscor-director program from this repo's Releases on first use.",
   "repository": "https://github.com/reminiscor-vr/skills",
   "keywords": [
