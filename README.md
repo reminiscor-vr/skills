@@ -17,9 +17,35 @@ claude plugin install reminiscor-director@reminiscor
 
 Then ask Claude to set up the director, or to ping it.
 
+### Codex, OpenCode and Grok
+
+All three load skills from `~/.agents/skills`. Clone this repo once and link the skill there:
+
+```bash
+git clone https://github.com/reminiscor-vr/skills ~/.local/share/reminiscor-skills
+```
+
+```bash
+mkdir -p ~/.agents/skills && ln -s ~/.local/share/reminiscor-skills/skills/reminiscor-director ~/.agents/skills/reminiscor-director
+```
+
+Restart the agent, then ask it to set up the director, or to ping it.
+
+Grok also reads Claude Code's plugins. If the plugin is already installed in Claude Code and Grok lists `reminiscor-director` among its skills, skip the link.
+
+### Permission prompts
+
+The first time the agent asks before running a director command, it offers to stop asking. On your yes it adds one allow rule to its own settings, for the director's script and nothing else. Paid generations still wait for your yes on the Run card.
+
 ## Updates
 
-Ask Claude to check for updates: it installs the latest release when there is a newer one, then runs setup, which adds only what changed. Your records, database and media are kept. A newer plugin version also moves the program up on its next use.
+Ask the agent to check for updates: it installs the latest release when there is a newer one, then runs setup, which adds only what changed. Your records, database and media are kept. A newer plugin version also moves the program up on its next use.
+
+Outside Claude Code the skill itself is updated by pulling the clone:
+
+```bash
+git -C ~/.local/share/reminiscor-skills pull
+```
 
 ## Licence
 
