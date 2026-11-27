@@ -4,7 +4,7 @@ Agent skills from Reminiscor. The `reminiscor-director` skill makes a film with 
 
 The skill is a thin layer: on first use it downloads the `reminiscor-director` program from this repo's [Releases](https://github.com/reminiscor-vr/skills/releases) and runs its setup, which installs ComfyUI, torch and ffmpeg (several minutes, a few GB). Your records and media stay in the program's data folder on your machine.
 
-Supported: Mac with Apple Silicon and Linux x64. Windows comes later.
+Supported: Mac with Apple Silicon, Linux x64 (glibc 2.35 or newer, as Ubuntu 22.04) and Windows 10/11 x64. On Windows the agent runs the skill's script in Git Bash, which Claude Code needs anyway; agents whose shell is PowerShell use `scripts/reminiscor-director.cmd` next to it. No admin rights are needed. With an NVIDIA GPU, setup installs the CUDA build of torch, otherwise the CPU one.
 
 ## Install
 
@@ -27,6 +27,14 @@ git clone https://github.com/reminiscor-vr/skills ~/.local/share/reminiscor-skil
 
 ```bash
 mkdir -p ~/.agents/skills && ln -s ~/.local/share/reminiscor-skills/skills/reminiscor-director ~/.agents/skills/reminiscor-director
+```
+
+On Windows, in cmd (a junction needs no admin rights):
+
+```bat
+git clone https://github.com/reminiscor-vr/skills %LOCALAPPDATA%\reminiscor-skills
+mkdir %USERPROFILE%\.agents\skills
+mklink /J %USERPROFILE%\.agents\skills\reminiscor-director %LOCALAPPDATA%\reminiscor-skills\skills\reminiscor-director
 ```
 
 Restart the agent, then ask it to set up the director, or to ping it.

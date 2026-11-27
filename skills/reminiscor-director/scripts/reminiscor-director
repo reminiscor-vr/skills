@@ -5,6 +5,10 @@
 #   scripts/reminiscor-director update --check        the installed and latest versions, and what is new
 #   scripts/reminiscor-director update                install the latest release, if newer
 #
+# Mac (Apple Silicon), Linux x64, and Windows x64 under Git Bash (the shell
+# Claude Code runs there); where Windows has no bash, reminiscor-director.cmd
+# next to this runs reminiscor-director.ps1, which does the same.
+#
 # The program comes from this repo's Releases (plain HTTPS, checked against
 # SHA256SUMS) into its own folder. VERSION below is the lowest version this
 # plugin works with: an older or missing program is replaced by it on the next
@@ -35,13 +39,18 @@ case "$(uname -s)-$(uname -m)" in
     Linux-x86_64)
         system=linux-x64
         base="${XDG_DATA_HOME:-$HOME/.local/share}/reminiscor-director-program" ;;
-    *) die "unsupported system: $(uname -s)-$(uname -m) (Mac Apple Silicon or Linux x64)" ;;
+    MINGW*-x86_64 | MSYS*-x86_64 | CYGWIN*-x86_64)
+        system=windows-x64
+        base="$(cygpath -u "${LOCALAPPDATA:-$USERPROFILE/AppData/Local}")/reminiscor-director-program" ;;
+    *) die "unsupported system: $(uname -s)-$(uname -m) (Mac Apple Silicon, Linux x64 or Windows x64)" ;;
 esac
+ext=tar.gz exe=reminiscor-director
+[ "$system" = windows-x64 ] && ext=zip exe=reminiscor-director.exe
 base="${REMINISCOR_DIRECTOR_PROGRAM:-$base}"
 releases="${REMINISCOR_DIRECTOR_RELEASES:-https://github.com/$REPO/releases/download}"
 changelog_url="${REMINISCOR_DIRECTOR_CHANGELOG:-https://raw.githubusercontent.com/$REPO/main/CHANGELOG.md}"
 
-exe_of() { printf '%s/%s/reminiscor-director/reminiscor-director' "$base" "$1"; }
+exe_of() { printf '%s/%s/reminiscor-director/%s' "$base" "$1" "$exe"; }
 
 # The installed version, when its program is there.
 installed() {
@@ -57,9 +66,23 @@ sha256() {
     if command -v shasum >/dev/null; then shasum -a 256 "$1"; else sha256sum "$1"; fi | awk '{print $1}'
 }
 
+# Unpack archive $1 into folder $2. Git Bash's tar cannot read a zip; Windows'
+# own tar (bsdtar) can, and unzip, when Git ships it, too.
+unpack() {
+    case "$1" in
+        *.zip)
+            if command -v unzip >/dev/null; then
+                unzip -q "$1" -d "$2"
+            else
+                "$(cygpath -u "${SYSTEMROOT:-C:/Windows}")/System32/tar.exe" -xf "$(cygpath -w "$1")" -C "$(cygpath -w "$2")"
+            fi ;;
+        *) tar -xzf "$1" -C "$2" ;;
+    esac || die "could not unpack $1"
+}
+
 # Download, check and unpack version $1 into its own folder.
 fetch() {
-    local version=$1 archive="reminiscor-director-$1-$system.tar.gz" url="$releases/v$1" tmp want
+    local version=$1 archive="reminiscor-director-$1-$system.$ext" url="$releases/v$1" tmp want
     tmp=$(mktemp -d)
     trap 'rm -rf "$tmp"; trap - RETURN' RETURN
     log "downloading reminiscor-director $version ($system)"
@@ -69,8 +92,8 @@ fetch() {
     [ -n "$want" ] || die "$archive is not listed in SHA256SUMS"
     [ "$(sha256 "$tmp/$archive")" = "$want" ] || die "$archive does not match SHA256SUMS; not installed"
     mkdir -p "$tmp/unpacked"
-    tar -xzf "$tmp/$archive" -C "$tmp/unpacked"
-    [ -x "$tmp/unpacked/reminiscor-director/reminiscor-director" ] || die "$archive has no reminiscor-director program"
+    unpack "$tmp/$archive" "$tmp/unpacked"
+    [ -x "$tmp/unpacked/reminiscor-director/$exe" ] || die "$archive has no reminiscor-director program"
     mkdir -p "$base"
     rm -rf "${base:?}/$version"
     mv "$tmp/unpacked" "$base/$version"
@@ -78,10 +101,13 @@ fetch() {
 
 # Install version $1 in place of the current one, keeping what runs running.
 install() {
-    local version=$1 old running="" new
+    local version=$1 old running="" new status
     old=$(installed)
     fetch "$version"
-    if [ -n "$old" ] && "$(exe_of "$old")" status 2>/dev/null | grep -qE '^(ComfyUI|app) +up'; then
+    # Captured first: grep -q quits at the first match, and under pipefail
+    # the writer's SIGPIPE would make the pipe fail.
+    [ -n "$old" ] && status=$("$(exe_of "$old")" status 2>/dev/null) || status=""
+    if printf '%s\n' "$status" | grep -qE '^(ComfyUI|app) +up'; then
         running=1
         log "stopping reminiscor-director $old"
         "$(exe_of "$old")" stop >&2 || true
