@@ -20,7 +20,7 @@
 # For the built-in Windows PowerShell 5.1; no admin rights. Keep this file
 # ASCII: 5.1 reads it in the ANSI code page. The release workflow rewrites the
 # $Version line.
-$Version = '0.1.3'
+$Version = '0.1.4'
 $Repo = 'reminiscor-vr/skills'
 
 $ErrorActionPreference = 'Stop'

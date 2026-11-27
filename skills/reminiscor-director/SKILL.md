@@ -1,6 +1,7 @@
 ---
 name: reminiscor-director
 description: Make a film with Seedance 2.5 from a creator's story and files, as a project in the reminiscor-director program on this machine: a script, then shots storyboarded and generated as takes, then a timeline rendered into the film. Use when the creator wants a film made from a story, wants a project's script, shots, takes or render continued or changed, or wants the director set up, started, checked or updated.
+allowed-tools: Bash(${CLAUDE_SKILL_DIR}/scripts/reminiscor-director *)
 ---
 
 # Seedance director
@@ -15,7 +16,7 @@ One chat per project. Long chats get summarized, so the project's saved state is
 
 ## The program
 
-The director is the `reminiscor-director` program on this machine: a local app (pages and an API on http://127.0.0.1:8765), its own ComfyUI (http://127.0.0.1:8190) and a data folder with the creator's projects. In this skill, `reminiscor-director` means the script in this skill's base directory: run it by its full path, quoted, as `"<base directory>/scripts/reminiscor-director" <command>`.
+The director is the `reminiscor-director` program on this machine: a local app (pages and an API on http://127.0.0.1:8765), its own ComfyUI (http://127.0.0.1:8190) and a data folder with the creator's projects. In this skill, `reminiscor-director` means the script in this skill's base directory: run it by its full path, quoted, as `"<base directory>/scripts/reminiscor-director" <command>`. It runs on a Mac (Apple Silicon), Linux x64 and Windows x64. On Windows it needs bash (Git Bash, as Claude Code has); where the agent's shell is PowerShell or cmd, run `"<base directory>/scripts/reminiscor-director.cmd" <command>` instead, the same in every other way, and read `reminiscor-director.cmd` for `reminiscor-director` in the rules below.
 
 The first call downloads the program and runs `setup`, which installs ComfyUI, torch and ffmpeg: several minutes and a few GB, so run it in the background and tell the creator. Later calls start at once.
 
@@ -27,6 +28,21 @@ The first call downloads the program and runs `setup`, which installs ComfyUI, t
 | `ping` | runs one free workflow: the check that everything works |
 | `node add|list|remove` | the creator's own ComfyUI node packs ([`WORKFLOWS.md`](WORKFLOWS.md) § Node packs) |
 | `project <action> …` | everything on a project: the rest of this skill |
+
+### Commands without a prompt
+
+A permission prompt before every command wears the creator out and guards nothing: the Run card and `--priced` guard the money (§ Run cards and asking). In Claude Code this skill's `allowed-tools` lets its commands run without a prompt only in the turn that loads it; later turns ask again unless the agent has an allow rule.
+
+So the first time the agent asks before a `reminiscor-director` command, or when you run `setup`, check the agent's user config below. When the rule is not there, say in one plain sentence that the agent can stop asking before the director's commands, and on yes add that one rule. Create the file when it is missing, keep everything else in it, and add nothing broader than the director's script; the agent may ask once before you change its config. Never add a rule for anything else, and never one without the creator's yes.
+
+| Agent | File | Rule |
+|---|---|---|
+| Claude Code | `~/.claude/settings.json` | `"Bash(*/scripts/reminiscor-director *)"` in `permissions.allow` |
+| Grok | `~/.grok/config.toml` | `"Bash(*/scripts/reminiscor-director *)"` in `allow` under `[permission]` |
+| OpenCode | `~/.config/opencode/opencode.json` | `{ "action": "shell", "resource": "*/scripts/reminiscor-director *", "effect": "allow" }` at the end of the `permissions` array |
+| Codex | `~/.codex/rules/default.rules` | `prefix_rule(pattern = ["<base directory>/scripts/reminiscor-director"], decision = "allow")`, with the script's full path; restart Codex after |
+
+On Windows the paths start at `%USERPROFILE%`, a rule for the `.cmd` names `reminiscor-director.cmd`, and the OpenCode one is `%USERPROFILE%\.config\opencode\opencode.json`. After the rule, say what is now allowed and that paid runs still wait for the Run card.
 
 **Updates**, only when the creator asks to check for them:
 
@@ -56,7 +72,7 @@ git -C ~/.claude/skills/higgsfield checkout 6a6a5dd105d285782dd6992692be4d8b3825
 
 Every action on a project is `reminiscor-director project <action> …`: JSON on stdout, one human line on stderr. `reminiscor-director project <action> --help` is the reference for each action's flags and file formats; read it before an action's first use in a session.
 
-- **Run each command alone**, exactly as `"<base directory>/scripts/reminiscor-director" project …`, with no `cd`, env prefix or pipe in front, in the Bash tool and with forward slashes on Windows too. Whether the agent asks before each command is the creator's setting, not a safeguard: nothing but you and the Run card stands between a spec and the creator's money (§ Run cards and asking).
+- **Run each command alone**, exactly as `"<base directory>/scripts/reminiscor-director" project …`, with no `cd`, env prefix or pipe in front, in the Bash tool (or the `.cmd` in the agent's shell, § The program) and with forward slashes on Windows too. Whether the agent asks before each command is the creator's setting, not a safeguard (§ Commands without a prompt): nothing but you and the Run card stands between a spec and the creator's money (§ Run cards and asking).
 - **The creator sees results, not commands.** In a creator's session run as few commands as you can: no exploring, no helper scripts, what you need read from one command's output. When a command fails, fix the cause and run it once more; if it still fails, say what is wrong in one plain sentence. Never talk to the creator about commands, files, ids or JSON. If they complain about seeing commands, point them to "Transcript view" → "Normal" in the session's title-bar menu; don't switch it yourself.
 - **Files you write** (script, facts, parts, panel lists, generation specs, timelines) go in a short work folder, `$TMPDIR/<project>/`, so commands stay short (on Windows in `%TEMP%`, written as `C:/…`). Name specs by run (`run7.json`) and the rest for what they hold (`shot2-part.md`). Pass their paths.
 - **Exit 2**: the app isn't running. Run `reminiscor-director start` (it starts ComfyUI and the app, about a minute the first time) and retry; when it fails, read the log it names and say in one sentence what is wrong. **Exit 1**: the app refused; the JSON names the field and the allowed values. Fix it and retry.

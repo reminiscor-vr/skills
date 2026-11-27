@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.1.4 — 2026-11-27
+
+- The director runs on Windows x64 and Linux x64 as well as the Mac: the plugin downloads the program for your system, and setup installs ComfyUI with the CUDA torch when there is an NVIDIA GPU, else the CPU one.
+- On project and shot pages the badges under the title no longer touch the card below them.
+- Claude stops asking "allow this command?" before every director command: the first time, it offers to allow the director's commands once, in Claude Code, Grok, OpenCode or Codex. Paid runs still wait for your yes on the Run card.
+
 ## 0.1.3 — 2026-11-27
 
 - A page for your Comfy API key, at http://127.0.0.1:8765/settings: paste it there and paid generations work at once. The projects page reminds you while there is none.
