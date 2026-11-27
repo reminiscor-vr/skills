@@ -1,0 +1,17 @@
+{
+  "name": "reminiscor",
+  "owner": {
+    "name": "Reminiscor",
+    "url": "https://github.com/reminiscor-vr"
+  },
+  "description": "Reminiscor's agent skills, as an installable Claude Code plugin.",
+  "plugins": [
+    {
+      "name": "reminiscor-director",
+      "source": "./",
+      "description": "Makes a film with Seedance from a creator's story and files.",
+      "category": "media",
+      "keywords": ["seedance", "comfyui", "video", "film"]
+    }
+  ]
+}

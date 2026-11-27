@@ -1,0 +1,68 @@
+#!/usr/bin/env bash
+# Runs the reminiscor-director program, installing it first when it is
+# missing or not the version this plugin pins:
+#
+#   scripts/reminiscor-director <command> [args...]
+#
+# The program comes from this repo's Releases (plain HTTPS, checked against
+# SHA256SUMS) into its own folder; a first install also runs `setup`. The data
+# folder is the program's own and is kept across versions.
+#
+# Overrides: REMINISCOR_DIRECTOR_PROGRAM (program folder),
+# REMINISCOR_DIRECTOR_HOME (data folder, read by the program itself),
+# REMINISCOR_DIRECTOR_RELEASES (where releases are, for testing a build).
+set -euo pipefail
+
+VERSION=0.1.0
+REPO=reminiscor-vr/skills
+
+die() { printf 'error: %s\n' "$*" >&2; exit 1; }
+
+case "$(uname -s)-$(uname -m)" in
+    Darwin-arm64)
+        system=macos-arm64
+        base="$HOME/Library/Application Support/reminiscor-director-program" ;;
+    Linux-x86_64)
+        system=linux-x64
+        base="${XDG_DATA_HOME:-$HOME/.local/share}/reminiscor-director-program" ;;
+    *) die "unsupported system: $(uname -s)-$(uname -m) (Mac Apple Silicon or Linux x64)" ;;
+esac
+base="${REMINISCOR_DIRECTOR_PROGRAM:-$base}"
+dir="$base/$VERSION"
+exe="$dir/reminiscor-director/reminiscor-director"
+
+sha256() {
+    if command -v shasum >/dev/null; then shasum -a 256 "$1"; else sha256sum "$1"; fi | awk '{print $1}'
+}
+
+install() {
+    local archive="reminiscor-director-$VERSION-$system.tar.gz"
+    local url="${REMINISCOR_DIRECTOR_RELEASES:-https://github.com/$REPO/releases/download}/v$VERSION"
+    local tmp
+    tmp=$(mktemp -d)
+    trap 'rm -rf "$tmp"' RETURN
+    echo "==> downloading reminiscor-director $VERSION ($system)" >&2
+    curl -fsSL "$url/$archive" -o "$tmp/$archive" || die "could not download $url/$archive"
+    curl -fsSL "$url/SHA256SUMS" -o "$tmp/SHA256SUMS" || die "could not download $url/SHA256SUMS"
+    local want
+    want=$(awk -v f="$archive" '$2 == f || $2 == "*"f {print $1}' "$tmp/SHA256SUMS")
+    [ -n "$want" ] || die "$archive is not listed in SHA256SUMS"
+    [ "$(sha256 "$tmp/$archive")" = "$want" ] || die "$archive does not match SHA256SUMS; not installed"
+    mkdir -p "$tmp/unpacked"
+    tar -xzf "$tmp/$archive" -C "$tmp/unpacked"
+    [ -x "$tmp/unpacked/reminiscor-director/reminiscor-director" ] || die "$archive has no reminiscor-director program"
+    mkdir -p "$base"
+    rm -rf "$dir"
+    mv "$tmp/unpacked" "$dir"
+    # Older versions of the program; the data folder is elsewhere and stays.
+    find "$base" -mindepth 1 -maxdepth 1 ! -name "$VERSION" -exec rm -rf {} +
+    echo "==> installed in $dir" >&2
+}
+
+if [ ! -x "$exe" ]; then
+    install
+    if [ "${1:-}" != setup ]; then
+        "$exe" setup >&2
+    fi
+fi
+exec "$exe" "$@"
